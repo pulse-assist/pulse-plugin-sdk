@@ -31,7 +31,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
-__all__ = ["Plugin", "PulseApi", "PulseApiError", "CommandError"]
+__all__ = ["Plugin", "PulseApi", "PulseApiError", "CommandError", "FileTicket"]
 
 
 class PulseApiError(RuntimeError):
@@ -42,6 +42,44 @@ class PulseApiError(RuntimeError):
 
 class CommandError(Exception):
     """Ошибка команды, понятная агенту: отдаётся как 400 с текстом."""
+
+
+class FileTicket:
+    """Access to one catalog file via /api/plugin-files/{ticket} (K4/K6)."""
+
+    def __init__(self, api: "PulseApi", ticket: str, meta: dict[str, Any] | None = None):
+        self._api = api
+        self.ticket = ticket
+        self._meta = meta
+
+    def meta(self) -> dict[str, Any]:
+        if self._meta is None:
+            self._meta = self._api.get(f"/api/plugin-files/{self.ticket}")
+        return self._meta
+
+    def read(self) -> bytes:
+        response = self._api._http.get(f"/api/plugin-files/{self.ticket}/content")
+        if response.status_code >= 400:
+            raise PulseApiError(f"{response.status_code}: {response.text}", response.status_code)
+        return response.content
+
+    def write(
+        self, data: bytes, *, if_match: str | None = None, on_conflict: str = "error",
+    ) -> dict[str, Any]:
+        headers = {"If-Match": if_match} if if_match else None
+        response = self._api._http.put(
+            f"/api/plugin-files/{self.ticket}/content",
+            content=data,
+            headers=headers,
+            params={"on_conflict": on_conflict},
+        )
+        if response.status_code >= 400:
+            try:
+                detail = response.json().get("detail", response.text)
+            except ValueError:
+                detail = response.text
+            raise PulseApiError(f"{response.status_code}: {detail}", response.status_code)
+        return response.json() if response.content else {"saved": True}
 
 
 class PulseApi:
@@ -84,6 +122,8 @@ class Plugin:
         self.data_dir = Path(env.get("PULSE_PLUGIN_DATA") or Path.cwd() / ".plugin-data")
         self.files_dir = Path(env.get("PULSE_PLUGIN_FILES") or self.data_dir / "files")
         self.folder = env.get("PULSE_PLUGIN_FOLDER", f"Plugins/{self.name}")
+        # external path of embed pages: <base_path>/plugin-apps/<id>
+        self.app_path = env.get("PULSE_PLUGIN_APP_PATH", f"/plugin-apps/{self.id}")
         self._commands: dict[str, dict] = {}
         self.app = FastAPI(title=title or self.name)
         self._routes()
@@ -95,6 +135,34 @@ class Plugin:
 
     def secret(self, key: str) -> str | None:
         return self.secrets.get(key)
+
+    def service_url(self, service_id: str) -> str:
+        """Internal URL of a sidecar service (PULSE_SERVICE_<ID>_URL)."""
+        key = f"PULSE_SERVICE_{service_id.upper().replace('-', '_')}_URL"
+        url = os.environ.get(key)
+        if not url:
+            raise CommandError(f"Сервис «{service_id}» не задан ({key})")
+        return url
+
+    def file_ticket(self, ticket: str) -> FileTicket:
+        """Open a file ticket issued by the core (Files panel or agent file arg)."""
+        return FileTicket(self.api, ticket)
+
+    def file(self, arg: Any) -> FileTicket:
+        """Resolve a command file/file-out argument (dict with ticket, or raw ticket string)."""
+        if isinstance(arg, dict) and arg.get("ticket"):
+            return FileTicket(self.api, arg["ticket"], {
+                "name": arg.get("name"), "path": arg.get("path"),
+            })
+        if isinstance(arg, str) and arg:
+            return FileTicket(self.api, arg)
+        raise CommandError("Ожидался аргумент файла с билетом")
+
+    def provide_files(self, provider) -> None:
+        """Хранилище плагина — папка @<id> в «Файлах» и у агентов (pulse_plugin.fs.FileProvider, право files:provide)."""
+        from pulse_plugin.fs import mount
+
+        mount(self.app, provider)
 
     @cached_property
     def api(self) -> PulseApi:

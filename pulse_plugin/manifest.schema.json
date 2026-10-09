@@ -1,7 +1,183 @@
 {
  "$defs": {
+  "EmbedSpec": {
+   "additionalProperties": false,
+   "description": "Same-origin embed pages under /plugin-apps/<id>/… (requires permission embed).",
+   "properties": {
+    "public_paths": {
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 40,
+     "title": "Public Paths",
+     "type": "array"
+    }
+   },
+   "title": "EmbedSpec",
+   "type": "object"
+  },
+  "FileHandler": {
+   "additionalProperties": false,
+   "description": "File handler for the Files preview panel (K3).",
+   "properties": {
+    "id": {
+     "maxLength": 40,
+     "minLength": 1,
+     "pattern": "^[a-z][a-z0-9-]*$",
+     "title": "Id",
+     "type": "string"
+    },
+    "title": {
+     "maxLength": 80,
+     "minLength": 1,
+     "title": "Title",
+     "type": "string"
+    },
+    "extensions": {
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 50,
+     "minItems": 1,
+     "title": "Extensions",
+     "type": "array"
+    },
+    "path": {
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Path",
+     "type": "string"
+    },
+    "access": {
+     "default": "read",
+     "enum": [
+      "read",
+      "write"
+     ],
+     "title": "Access",
+     "type": "string"
+    },
+    "preview": {
+     "default": true,
+     "title": "Preview",
+     "type": "boolean"
+    },
+    "mobile": {
+     "default": "view",
+     "enum": [
+      "view",
+      "none"
+     ],
+     "title": "Mobile",
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "title",
+    "extensions",
+    "path"
+   ],
+   "title": "FileHandler",
+   "type": "object"
+  },
+  "FileProviderSpec": {
+   "additionalProperties": false,
+   "description": "Хранилище плагина — папка @<id> в «Файлах», у pulse files и в дереве агентов (§13.8b, право files:provide).",
+   "properties": {
+    "title": {
+     "maxLength": 60,
+     "minLength": 1,
+     "title": "Title",
+     "type": "string"
+    },
+    "icon": {
+     "default": "bi-hdd-network",
+     "pattern": "^bi-[a-z0-9-]+$",
+     "title": "Icon",
+     "type": "string"
+    },
+    "description": {
+     "default": "",
+     "maxLength": 300,
+     "title": "Description",
+     "type": "string"
+    }
+   },
+   "required": [
+    "title"
+   ],
+   "title": "FileProviderSpec",
+   "type": "object"
+  },
+  "FileSettings": {
+   "additionalProperties": false,
+   "description": "File handlers and templates declared by the plugin.",
+   "properties": {
+    "handlers": {
+     "items": {
+      "$ref": "#/$defs/FileHandler"
+     },
+     "maxItems": 20,
+     "title": "Handlers",
+     "type": "array"
+    },
+    "templates": {
+     "items": {
+      "$ref": "#/$defs/FileTemplate"
+     },
+     "maxItems": 20,
+     "title": "Templates",
+     "type": "array"
+    },
+    "provider": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/FileProviderSpec"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "title": "FileSettings",
+   "type": "object"
+  },
+  "FileTemplate": {
+   "additionalProperties": false,
+   "description": "Template for «Создать ▾» in Files.",
+   "properties": {
+    "title": {
+     "maxLength": 80,
+     "minLength": 1,
+     "title": "Title",
+     "type": "string"
+    },
+    "extension": {
+     "maxLength": 20,
+     "minLength": 1,
+     "title": "Extension",
+     "type": "string"
+    },
+    "file": {
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "File",
+     "type": "string"
+    }
+   },
+   "required": [
+    "title",
+    "extension",
+    "file"
+   ],
+   "title": "FileTemplate",
+   "type": "object"
+  },
   "JobSpec": {
-   "description": "Фоновая работа плагина: команда по расписанию — системная задача шедулера (§13.5).",
+   "description": "Фоновая работа плагина: команда по расписанию — системное задание планировщика (§13.5).",
    "properties": {
     "name": {
      "maxLength": 60,
@@ -146,6 +322,122 @@
    "title": "Runtime",
    "type": "object"
   },
+  "ServiceProxy": {
+   "additionalProperties": false,
+   "description": "How the service learns its external path via X-Forwarded-* (K2).",
+   "properties": {
+    "host_with_prefix": {
+     "default": false,
+     "title": "Host With Prefix",
+     "type": "boolean"
+    }
+   },
+   "title": "ServiceProxy",
+   "type": "object"
+  },
+  "ServiceSpec": {
+   "additionalProperties": false,
+   "description": "Дополнительный контейнер плагина — OnlyOffice, Redis, nginx и т.п.",
+   "properties": {
+    "id": {
+     "maxLength": 40,
+     "minLength": 1,
+     "pattern": "^[a-z][a-z0-9-]*$",
+     "title": "Id",
+     "type": "string"
+    },
+    "image": {
+     "maxLength": 200,
+     "minLength": 1,
+     "title": "Image",
+     "type": "string"
+    },
+    "port": {
+     "maximum": 65535,
+     "minimum": 1,
+     "title": "Port",
+     "type": "integer"
+    },
+    "health": {
+     "default": "/health",
+     "title": "Health",
+     "type": "string"
+    },
+    "env": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "title": "Env",
+     "type": "object"
+    },
+    "volumes": {
+     "additionalProperties": {
+      "type": "string"
+     },
+     "title": "Volumes",
+     "type": "object"
+    },
+    "memory": {
+     "anyOf": [
+      {
+       "pattern": "^\\d+[kmg]$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Memory"
+    },
+    "cpus": {
+     "anyOf": [
+      {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        }
+       ],
+       "ge": 0.1,
+       "le": 16
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cpus"
+    },
+    "start_timeout": {
+     "default": 300,
+     "maximum": 1800,
+     "minimum": 30,
+     "title": "Start Timeout",
+     "type": "integer"
+    },
+    "proxy": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ServiceProxy"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "required": [
+    "id",
+    "image",
+    "port"
+   ],
+   "title": "ServiceSpec",
+   "type": "object"
+  },
   "Setting": {
    "properties": {
     "type": {
@@ -186,6 +478,11 @@
     "secret": {
      "default": false,
      "title": "Secret",
+     "type": "boolean"
+    },
+    "generate": {
+     "default": false,
+     "title": "Generate",
      "type": "boolean"
     },
     "default": {
@@ -240,7 +537,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.1",
+   "default": ">=1.3",
    "title": "Pulse",
    "type": "string"
   },
@@ -256,10 +553,14 @@
      "cards:read",
      "cards:write",
      "chat",
+     "embed",
      "files",
+     "files:open",
+     "files:provide",
      "jobs",
      "network",
      "notify",
+     "services",
      "signals:create"
     ]
    },
@@ -270,6 +571,36 @@
    "anyOf": [
     {
      "$ref": "#/$defs/Runtime"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null
+  },
+  "services": {
+   "items": {
+    "$ref": "#/$defs/ServiceSpec"
+   },
+   "maxItems": 10,
+   "title": "Services",
+   "type": "array"
+  },
+  "files": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/FileSettings"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null
+  },
+  "embed": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/EmbedSpec"
     },
     {
      "type": "null"
@@ -350,6 +681,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.1.schema.json",
- "x-pulse-contract": "1.1"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.3.schema.json",
+ "x-pulse-contract": "1.3"
 }

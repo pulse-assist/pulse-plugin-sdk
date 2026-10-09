@@ -31,7 +31,10 @@ TEMPLATE = "https://github.com/pulse-assist/pulse-plugin-template/archive/refs/h
 ID = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
 VERSION = re.compile(r"^\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?$")
 SPEC = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+(?:\.\d+)*)$")
-PERMISSIONS = {"cards:read", "cards:write", "signals:create", "files", "jobs", "chat", "notify", "network"}
+PERMISSIONS = {
+    "cards:read", "cards:write", "signals:create", "files", "files:open", "files:provide", "embed", "services",
+    "jobs", "chat", "notify", "network",
+}
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
                 ".plugin-data", ".idea", ".vscode", ".pulse_plugin_sdk"}
 EXCLUDE_FILES = {".DS_Store"}
@@ -120,6 +123,33 @@ def check(root: Path) -> tuple[dict, list[str]]:
     for job in m.get("jobs") or []:
         if job.get("command") not in commands:
             problems.append(f"jobs «{job.get('name')}»: команды {job.get('command')} нет в {m.get('commands') or 'commands.json'}")
+    # services require digest + services permission + docker runtime
+    for svc in m.get("services") or []:
+        image = str(svc.get("image") or "")
+        if "@sha256:" not in image:
+            problems.append(f"services «{svc.get('id')}»: образ должен содержать @sha256:…")
+    if m.get("services"):
+        if "services" not in (m.get("permissions") or []):
+            problems.append("services: нужно право services")
+        if (m.get("runtime") or {}).get("kind") != "docker":
+            problems.append("services: нужен runtime.kind = docker")
+    files = m.get("files") or {}
+    if files.get("handlers") or files.get("templates"):
+        perms = set(m.get("permissions") or [])
+        if "files:open" not in perms:
+            problems.append("files: нужно право files:open")
+        if files.get("handlers") and "embed" not in perms:
+            problems.append("files.handlers: нужно право embed")
+        for tmpl in files.get("templates") or []:
+            if tmpl.get("file"):
+                _inside(root, tmpl["file"], "files.templates", problems)
+    if files.get("provider"):
+        if "files:provide" not in set(m.get("permissions") or []):
+            problems.append("files.provider: нужно право files:provide")
+        if not m.get("runtime"):
+            problems.append("files.provider: хранилище отдаёт процесс плагина — нужен runtime")
+        if not str((files.get("provider") or {}).get("title", "")).strip():
+            problems.append("files.provider.title: имя папки в «Файлах»")
     _inside(root, m.get("install", "INSTALL.md"), "install", problems)
     return m, problems
 
