@@ -120,6 +120,8 @@ def check(root: Path) -> tuple[dict, list[str]]:
                 commands = {c["name"] for c in json.loads(cpath.read_text(encoding="utf-8"))}
             except (ValueError, KeyError, TypeError):
                 problems.append(f"{m['commands']}: список объектов с полем name")
+    if m.get("check") and m["check"] not in commands:
+        problems.append(f"check: команды {m['check']} нет в {m.get('commands') or 'commands.json'}")
     for job in m.get("jobs") or []:
         if job.get("command") not in commands:
             problems.append(f"jobs «{job.get('name')}»: команды {job.get('command')} нет в {m.get('commands') or 'commands.json'}")
