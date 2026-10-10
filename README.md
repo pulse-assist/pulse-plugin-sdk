@@ -12,7 +12,7 @@
   дизайн, формат каталога и выпуск. **`manifest.schema.json`** — JSON Schema манифеста (подсказки в редакторе).
 
 ```bash
-pip install "pulse-plugin @ git+https://github.com/pulse-assist/pulse-plugin-sdk@v1.4.0"
+pip install "pulse-plugin @ git+https://github.com/pulse-assist/pulse-plugin-sdk@v1.5.0"
 pulse-plugin new weather --name "Погода"     # плагин из шаблона pulse-assist/pulse-plugin-template
 cd pulse-weather && pulse-plugin check
 python -m pytest backend                      # тесты с pulse_plugin.testing

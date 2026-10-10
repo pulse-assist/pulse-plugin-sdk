@@ -70,6 +70,15 @@
      ],
      "title": "Mobile",
      "type": "string"
+    },
+    "scope": {
+     "default": "all",
+     "enum": [
+      "all",
+      "own"
+     ],
+     "title": "Scope",
+     "type": "string"
     }
    },
    "required": [
@@ -537,7 +546,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.4",
+   "default": ">=1.5",
    "title": "Pulse",
    "type": "string"
   },
@@ -694,6 +703,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.4.schema.json",
- "x-pulse-contract": "1.4"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.5.schema.json",
+ "x-pulse-contract": "1.5"
 }
