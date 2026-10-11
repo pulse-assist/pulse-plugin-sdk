@@ -1,9 +1,9 @@
 [project]
 name = "pulse-plugin"
-version = "1.5.0"
+version = "1.6.0"
 description = "Плагины «Пульса»: серверная часть (окружение, команды, API, сигналы), тесты без Пульса, утилита pulse-plugin"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27", "pymongo>=4.6"]
+dependencies = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27", "pymongo>=4.6", "python-multipart>=0.0.9"]
 
 [project.scripts]
 pulse-plugin = "pulse_plugin.dev:main"

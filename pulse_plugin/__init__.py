@@ -164,6 +164,13 @@ class Plugin:
 
         mount(self.app, provider)
 
+    def provide_speech(self, handler):
+        """Распознавание речи для Пульса (pulse_plugin.speech, право speech:provide); годится как декоратор."""
+        from pulse_plugin.speech import mount
+
+        mount(self.app, handler)
+        return handler
+
     @cached_property
     def api(self) -> PulseApi:
         return PulseApi(os.environ.get("PULSE_API_URL", "http://127.0.0.1:8000"), os.environ.get("PULSE_PLUGIN_TOKEN", ""))

@@ -505,6 +505,20 @@
    "title": "Setting",
    "type": "object"
   },
+  "SpeechSpec": {
+   "additionalProperties": false,
+   "description": "Распознавание речи (§13.8c, право speech:provide): процесс плагина отвечает на POST /speech/transcribe.",
+   "properties": {
+    "title": {
+     "default": "",
+     "maxLength": 80,
+     "title": "Title",
+     "type": "string"
+    }
+   },
+   "title": "SpeechSpec",
+   "type": "object"
+  },
   "Ui": {
    "properties": {
     "dist": {
@@ -546,7 +560,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.5",
+   "default": ">=1.6",
    "title": "Pulse",
    "type": "string"
   },
@@ -570,7 +584,8 @@
      "network",
      "notify",
      "services",
-     "signals:create"
+     "signals:create",
+     "speech:provide"
     ]
    },
    "title": "Permissions",
@@ -610,6 +625,17 @@
    "anyOf": [
     {
      "$ref": "#/$defs/EmbedSpec"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null
+  },
+  "speech": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/SpeechSpec"
     },
     {
      "type": "null"
@@ -703,6 +729,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.5.schema.json",
- "x-pulse-contract": "1.5"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.6.schema.json",
+ "x-pulse-contract": "1.6"
 }

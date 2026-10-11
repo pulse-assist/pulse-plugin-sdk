@@ -32,8 +32,8 @@ ID = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
 VERSION = re.compile(r"^\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?$")
 SPEC = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+(?:\.\d+)*)$")
 PERMISSIONS = {
-    "cards:read", "cards:write", "signals:create", "files", "files:open", "files:provide", "embed", "services",
-    "jobs", "chat", "notify", "network",
+    "cards:read", "cards:write", "signals:create", "files", "files:open", "files:provide", "speech:provide", "embed",
+    "services", "jobs", "chat", "notify", "network",
 }
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
                 ".plugin-data", ".idea", ".vscode", ".pulse_plugin_sdk"}
@@ -117,8 +117,13 @@ def check(root: Path) -> tuple[dict, list[str]]:
         cpath = root / m["commands"]
         if cpath.is_file():
             try:
-                commands = {c["name"] for c in json.loads(cpath.read_text(encoding="utf-8"))}
-            except (ValueError, KeyError, TypeError):
+                items = json.loads(cpath.read_text(encoding="utf-8"))
+                commands = {c["name"] for c in items}
+                for c in items:
+                    timeout = c.get("timeout_sec", 120)
+                    if not isinstance(timeout, int) or isinstance(timeout, bool) or not 10 <= timeout <= 3600:
+                        problems.append(f"{m['commands']}: «{c['name']}» — timeout_sec от 10 до 3600 секунд")
+            except (ValueError, KeyError, TypeError, AttributeError):
                 problems.append(f"{m['commands']}: список объектов с полем name")
     if m.get("check") and m["check"] not in commands:
         problems.append(f"check: команды {m['check']} нет в {m.get('commands') or 'commands.json'}")
@@ -152,6 +157,11 @@ def check(root: Path) -> tuple[dict, list[str]]:
             problems.append("files.provider: хранилище отдаёт процесс плагина — нужен runtime")
         if not str((files.get("provider") or {}).get("title", "")).strip():
             problems.append("files.provider.title: имя папки в «Файлах»")
+    if m.get("speech") is not None:
+        if "speech:provide" not in set(m.get("permissions") or []):
+            problems.append("speech: нужно право speech:provide")
+        if not m.get("runtime"):
+            problems.append("speech: распознаёт процесс плагина — нужен runtime")
     _inside(root, m.get("install", "INSTALL.md"), "install", problems)
     return m, problems
 
