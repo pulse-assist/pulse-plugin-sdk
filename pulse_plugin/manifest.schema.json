@@ -560,7 +560,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.6",
+   "default": ">=1.7",
    "title": "Pulse",
    "type": "string"
   },
@@ -729,6 +729,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.6.schema.json",
- "x-pulse-contract": "1.6"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.7.schema.json",
+ "x-pulse-contract": "1.7"
 }

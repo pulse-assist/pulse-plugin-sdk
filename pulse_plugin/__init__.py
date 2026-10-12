@@ -23,6 +23,7 @@ import inspect
 import json
 import os
 from collections.abc import Callable
+from contextvars import ContextVar
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -111,6 +112,10 @@ class PulseApi:
         return self.request("DELETE", path)
 
 
+_CALLER: ContextVar[str] = ContextVar("pulse_caller", default="agent")
+CALLERS = ("owner", "agent", "plugin")
+
+
 class Plugin:
     def __init__(self, title: str | None = None):
         env = os.environ
@@ -126,9 +131,30 @@ class Plugin:
         self.app_path = env.get("PULSE_PLUGIN_APP_PATH", f"/plugin-apps/{self.id}")
         self._commands: dict[str, dict] = {}
         self.app = FastAPI(title=title or self.name)
+
+        @self.app.middleware("http")
+        async def _caller(request: Request, call_next):
+            # контракт 1.7: кто зовёт — owner (владелец из браузера), agent (агенты, CLI, планировщик), plugin
+            value = (request.headers.get("x-pulse-caller") or "agent").strip().lower()
+            token = _CALLER.set(value if value in CALLERS else "agent")
+            try:
+                return await call_next(request)
+            finally:
+                _CALLER.reset(token)
+
         self._routes()
 
     # --- окружение -------------------------------------------------------------------------------------
+
+    @staticmethod
+    def caller() -> str:
+        """Кто зовёт текущий запрос или команду: owner | agent | plugin (нет заголовка — agent)."""
+        return _CALLER.get()
+
+    def require_owner(self, what: str = "Это действие") -> None:
+        """Только владелец из браузера: подтверждение оплаты, вход, необратимое. Агенту — 403 с понятным текстом."""
+        if self.caller() != "owner":
+            raise HTTPException(403, f"{what} подтверждает только владелец — в интерфейсе Пульса, не агент")
 
     def setting(self, key: str, default: Any = None) -> Any:
         return self.settings.get(key, default)
