@@ -113,7 +113,25 @@ class PulseApi:
 
 
 _CALLER: ContextVar[str] = ContextVar("pulse_caller", default="agent")
+_AGENT_SETTINGS: ContextVar[dict] = ContextVar("pulse_agent_settings", default={})
 CALLERS = ("owner", "agent", "plugin")
+
+
+def _parse_agent_settings(request: Request) -> dict:
+    """X-Pulse-Agent-Settings от ядра (контракт 1.8); старый X-Pulse-Browser-Full-Control → full_control."""
+    raw = (request.headers.get("x-pulse-agent-settings") or "").strip()
+    if raw:
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            return data
+    # совместимость с ядром до generic agent_settings
+    legacy = (request.headers.get("x-pulse-browser-full-control") or "").strip().lower()
+    if legacy in ("1", "true", "yes", "on"):
+        return {"full_control": True}
+    return {}
 
 
 class Plugin:
@@ -137,10 +155,13 @@ class Plugin:
             # контракт 1.7: кто зовёт — owner (владелец из браузера), agent (агенты, CLI, планировщик), plugin
             value = (request.headers.get("x-pulse-caller") or "agent").strip().lower()
             token = _CALLER.set(value if value in CALLERS else "agent")
+            # контракт 1.8: agent_settings этого плагина у агента запуска (ставит ядро)
+            caps = _AGENT_SETTINGS.set(_parse_agent_settings(request))
             try:
                 return await call_next(request)
             finally:
                 _CALLER.reset(token)
+                _AGENT_SETTINGS.reset(caps)
 
         self._routes()
 
@@ -150,6 +171,16 @@ class Plugin:
     def caller() -> str:
         """Кто зовёт текущий запрос или команду: owner | agent | plugin (нет заголовка — agent)."""
         return _CALLER.get()
+
+    @staticmethod
+    def agent_settings() -> dict:
+        """Настройки агента для этого плагина (манифест agent_settings, заголовок от ядра). Пусто — не агент."""
+        return dict(_AGENT_SETTINGS.get() or {})
+
+    @staticmethod
+    def agent_setting(key: str, default: Any = None) -> Any:
+        """Одна настройка агента из agent_settings манифеста."""
+        return (_AGENT_SETTINGS.get() or {}).get(key, default)
 
     def require_owner(self, what: str = "Это действие") -> None:
         """Только владелец из браузера: подтверждение оплаты, вход, необратимое. Агенту — 403 с понятным текстом."""
