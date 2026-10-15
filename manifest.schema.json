@@ -1,5 +1,60 @@
 {
  "$defs": {
+  "AgentSetting": {
+   "description": "Настройка агента от плагина (§13.8d): галочка/поле в Настройки → Агенты → доступ.\n\nЗначения хранятся у агента в plugin_settings.<id плагина>; при команде агента к этому плагину\nПульс передаёт их заголовком X-Pulse-Agent-Settings (подделать нельзя). Секретов здесь нет.",
+   "properties": {
+    "type": {
+     "default": "boolean",
+     "enum": [
+      "string",
+      "number",
+      "integer",
+      "boolean"
+     ],
+     "title": "Type",
+     "type": "string"
+    },
+    "title": {
+     "maxLength": 120,
+     "minLength": 1,
+     "title": "Title",
+     "type": "string"
+    },
+    "description": {
+     "default": "",
+     "title": "Description",
+     "type": "string"
+    },
+    "enum": {
+     "anyOf": [
+      {
+       "items": {},
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Enum"
+    },
+    "default": {
+     "default": null,
+     "title": "Default"
+    },
+    "warning": {
+     "default": "",
+     "maxLength": 500,
+     "title": "Warning",
+     "type": "string"
+    }
+   },
+   "required": [
+    "title"
+   ],
+   "title": "AgentSetting",
+   "type": "object"
+  },
   "EmbedSpec": {
    "additionalProperties": false,
    "description": "Same-origin embed pages under /plugin-apps/<id>/… (requires permission embed).",
@@ -560,7 +615,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.7",
+   "default": ">=1.8",
    "title": "Pulse",
    "type": "string"
   },
@@ -669,6 +724,14 @@
    "title": "Settings",
    "type": "object"
   },
+  "agent_settings": {
+   "additionalProperties": {
+    "$ref": "#/$defs/AgentSetting"
+   },
+   "maxProperties": 20,
+   "title": "Agent Settings",
+   "type": "object"
+  },
   "skills": {
    "items": {
     "type": "string"
@@ -729,6 +792,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.7.schema.json",
- "x-pulse-contract": "1.7"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.8.schema.json",
+ "x-pulse-contract": "1.8"
 }
