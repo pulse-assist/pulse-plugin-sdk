@@ -46,6 +46,14 @@ def test_check_finds_problems(tmp_path):
         dev.pack(root, tmp_path / "out")
 
 
+def test_check_menu_app(tmp_path):
+    """Контракт 1.9: пункт меню со встроенной страницей — путь от «/», право embed и runtime."""
+    menu = [{"id": "main", "title": "Доски", "page": "index.html", "app": "/editor"}]
+    assert dev.check(make_plugin(tmp_path / "ok", menu=menu, permissions=["embed"]))[1] == []
+    problems = dev.check(make_plugin(tmp_path / "bad", menu=[{**menu[0], "app": "//evil.example"}], runtime=None))[1]
+    assert any("от «/»" in p for p in problems) and any("право embed" in p for p in problems)
+    assert any("нужен runtime" in p for p in problems)
+
 def test_fake_api(monkeypatch):
     plugin = Plugin()
     api = fake_api(plugin, monkeypatch)

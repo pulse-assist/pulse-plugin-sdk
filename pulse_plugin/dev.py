@@ -108,6 +108,16 @@ def check(root: Path) -> tuple[dict, list[str]]:
     for item in m.get("menu") or []:
         if not ID.match(str(item.get("id", ""))) and not re.match(r"^[a-z][a-z0-9_-]*$", str(item.get("id", ""))):
             problems.append(f"menu: id пункта «{item.get('id')}» — латиница, цифры, «-», «_»")
+        app = item.get("app")
+        if app is not None:
+            # контракт 1.9: встроенная страница процесса плагина вместо page — нужны embed и runtime
+            app = str(app).strip()
+            if not app.startswith("/") or app.startswith("//") or ".." in app or "\\" in app or ":" in app.split("?", 1)[0]:
+                problems.append(f"menu «{item.get('id')}»: app — путь страницы процесса плагина от «/», например /editor")
+            if "embed" not in (m.get("permissions") or []):
+                problems.append(f"menu «{item.get('id')}»: для app нужно право embed")
+            if not runtime:
+                problems.append(f"menu «{item.get('id')}»: app отдаёт процесс плагина — нужен runtime")
     for key in ("skills", "agents"):
         for path in m.get(key) or []:
             _inside(root, path, key, problems)

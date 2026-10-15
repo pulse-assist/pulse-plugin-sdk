@@ -323,6 +323,19 @@
      "default": "index.html",
      "title": "Page",
      "type": "string"
+    },
+    "app": {
+     "anyOf": [
+      {
+       "maxLength": 200,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "App"
     }
    },
    "required": [
@@ -615,7 +628,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.8",
+   "default": ">=1.9",
    "title": "Pulse",
    "type": "string"
   },
@@ -792,6 +805,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.8.schema.json",
- "x-pulse-contract": "1.8"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.9.schema.json",
+ "x-pulse-contract": "1.9"
 }
