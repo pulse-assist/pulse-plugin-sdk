@@ -54,6 +54,38 @@ def test_check_menu_app(tmp_path):
     assert any("от «/»" in p for p in problems) and any("право embed" in p for p in problems)
     assert any("нужен runtime" in p for p in problems)
 
+def test_check_files_mount_and_isolated(tmp_path):
+    """Контракт 1.11: files:mount нужен runtime; network/memory/cpus — только у Docker."""
+    docker = {"kind": "docker", "network": "isolated", "memory": "4g", "cpus": 2}
+    (tmp_path / "ok").mkdir()
+    (tmp_path / "ok" / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
+    root = make_plugin(tmp_path / "ok", permissions=["files:mount"], runtime=docker)
+    assert dev.check(root)[1] == []
+    problems = dev.check(make_plugin(tmp_path / "bad", permissions=["files:mount"], runtime={
+        "kind": "python", "entry": "demo_plugin.app:app", "network": "isolated", "memory": "4 GB"}))[1]
+    assert any("memory" in p and "512m" in p for p in problems) and any("kind = docker" in p for p in problems)
+    assert any("files:mount" in p for p in dev.check(make_plugin(tmp_path / "none", permissions=["files:mount"],
+                                                                     runtime=None))[1])
+
+
+def test_fs_path(tmp_path, monkeypatch):
+    """Файл владельца по пути «Файлов» или по абсолютному пути агента; за пределы дерева — нельзя."""
+    from pulse_plugin import CommandError
+
+    monkeypatch.delenv("PULSE_PLUGIN_FS_DIR", raising=False)
+    with pytest.raises(CommandError, match="files:mount"):
+        Plugin().fs_path("a.csv")
+    monkeypatch.setenv("PULSE_PLUGIN_FS_DIR", str(tmp_path / "fs"))
+    monkeypatch.setenv("PULSE_PLUGIN_FS_HOST_DIR", "/root/pulse_data/fs")
+    plugin = Plugin()
+    assert plugin.fs_dir == tmp_path / "fs"
+    assert plugin.fs_path("Документы/a.csv") == tmp_path / "fs" / "Документы" / "a.csv"
+    assert plugin.fs_path("/root/pulse_data/fs/Документы/a.csv") == tmp_path / "fs" / "Документы" / "a.csv"
+    assert plugin.fs_path("/Документы/./a.csv") == tmp_path / "fs" / "Документы" / "a.csv"
+    with pytest.raises(CommandError):
+        plugin.fs_path("../etc/passwd")
+
+
 def test_fake_api(monkeypatch):
     plugin = Plugin()
     api = fake_api(plugin, monkeypatch)

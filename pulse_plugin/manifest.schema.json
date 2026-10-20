@@ -394,6 +394,49 @@
      "default": "/health",
      "title": "Health",
      "type": "string"
+    },
+    "network": {
+     "default": "host",
+     "enum": [
+      "host",
+      "isolated"
+     ],
+     "title": "Network",
+     "type": "string"
+    },
+    "memory": {
+     "anyOf": [
+      {
+       "pattern": "^\\d+[kmg]$",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Memory"
+    },
+    "cpus": {
+     "anyOf": [
+      {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "number"
+        }
+       ],
+       "ge": 0.1,
+       "le": 64
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Cpus"
     }
    },
    "title": "Runtime",
@@ -628,7 +671,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.9",
+   "default": ">=1.11",
    "title": "Pulse",
    "type": "string"
   },
@@ -646,6 +689,7 @@
      "chat",
      "embed",
      "files",
+     "files:mount",
      "files:open",
      "files:provide",
      "jobs",
@@ -805,6 +849,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.9.schema.json",
- "x-pulse-contract": "1.9"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.11.schema.json",
+ "x-pulse-contract": "1.11"
 }

@@ -193,6 +193,29 @@ class Plugin:
     def secret(self, key: str) -> str | None:
         return self.secrets.get(key)
 
+    @property
+    def fs_dir(self) -> Path | None:
+        """Дерево «Файлов» владельца (право files:mount, контракт 1.11): каталог, карточки, хранилища @… — или None."""
+        value = os.environ.get("PULSE_PLUGIN_FS_DIR")
+        return Path(value) if value else None
+
+    def fs_path(self, path: str) -> Path:
+        """Файл владельца в процессе плагина: путь как в «Файлах» («Документы/a.csv») или абсолютный путь агента
+        ($PULSE_FS_DIR/…, его корень — PULSE_PLUGIN_FS_HOST_DIR). Выход за дерево — CommandError."""
+        root = self.fs_dir
+        if root is None:
+            raise CommandError("Нет дерева «Файлов»: плагину нужно право files:mount")
+        value = str(path or "").strip().replace("\\", "/")
+        for prefix in (os.environ.get("PULSE_PLUGIN_FS_HOST_DIR", ""), root.as_posix()):
+            prefix = prefix.rstrip("/")
+            if prefix and (value == prefix or value.startswith(prefix + "/")):
+                value = value[len(prefix):]
+                break
+        parts = [part for part in value.split("/") if part not in ("", ".")]
+        if ".." in parts:
+            raise CommandError(f"Путь за пределами «Файлов»: {path}")
+        return root.joinpath(*parts)
+
     def service_url(self, service_id: str) -> str:
         """Internal URL of a sidecar service (PULSE_SERVICE_<ID>_URL)."""
         key = f"PULSE_SERVICE_{service_id.upper().replace('-', '_')}_URL"

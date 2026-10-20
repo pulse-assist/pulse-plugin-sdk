@@ -32,7 +32,8 @@ ID = re.compile(r"^[a-z][a-z0-9-]{1,39}$")
 VERSION = re.compile(r"^\d+(\.\d+){0,2}([-+][0-9A-Za-z.-]+)?$")
 SPEC = re.compile(r"^(>=|<=|==|>|<)?\s*(\d+(?:\.\d+)*)$")
 PERMISSIONS = {
-    "cards:read", "cards:write", "signals:create", "files", "files:open", "files:provide", "speech:provide", "embed",
+    "cards:read", "cards:write", "signals:create", "files", "files:open", "files:mount", "files:provide", "speech:provide",
+    "embed",
     "services", "jobs", "chat", "notify", "network",
 }
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
@@ -95,6 +96,16 @@ def check(root: Path) -> tuple[dict, list[str]]:
             _inside(root, runtime.get("dockerfile", "Dockerfile"), "runtime.dockerfile", problems)
         else:
             problems.append("runtime.kind: python или docker")
+        # контракт 1.11: своя сеть и лимиты контейнера
+        if runtime.get("network", "host") not in ("host", "isolated"):
+            problems.append("runtime.network: host или isolated")
+        if runtime.get("memory") is not None and not re.match(r"^\d+[kmg]$", str(runtime["memory"])):
+            problems.append("runtime.memory: лимит памяти вида 512m или 4g")
+        if kind != "docker" and (runtime.get("network", "host") != "host" or runtime.get("memory")
+                                 or runtime.get("cpus") is not None):
+            problems.append("runtime.network, memory и cpus — для runtime.kind = docker")
+    if "files:mount" in (m.get("permissions") or []) and not runtime:
+        problems.append("files:mount: дерево «Файлов» монтируется процессу плагина — нужен runtime")
     ui = m.get("ui")
     if ui:
         built = (root / ui.get("dist", "ui")).is_dir()
