@@ -22,6 +22,7 @@
 import inspect
 import json
 import os
+import time
 from collections.abc import Callable
 from contextvars import ContextVar
 from functools import cached_property
@@ -33,6 +34,79 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
 __all__ = ["Plugin", "PulseApi", "PulseApiError", "CommandError", "FileTicket"]
+
+
+class TaskStopped(Exception):
+    """Владелец остановил фоновую задачу (или вышел её срок) — прекратите работу."""
+
+
+class BgTask:
+    """Фоновая задача плагина (контракт 1.12): шаги — запуски своих агентов, итоги, этапы, вопросы через агента чата.
+    Методы синхронные (httpx): ведите задачу в своём потоке или фоновой задаче процесса."""
+
+    def __init__(self, api: "PulseApi", data: dict):
+        self.api = api
+        self.data = data
+        self.id = data["id"]
+
+    def refresh(self) -> dict:
+        self.data = self.api.get(f"/api/bg-tasks/{self.id}")
+        return self.data
+
+    @property
+    def active(self) -> bool:
+        return self.refresh()["status"] in ("queued", "running")
+
+    def step(self, agent: str, prompt: str, title: str | None = None, timeout_sec: int = 3600) -> str:
+        """Поставить шаг (запуск своего агента); вернуть id шага."""
+        body: dict[str, Any] = {"agent": agent, "prompt": prompt, "timeout_sec": timeout_sec}
+        if title:
+            body["title"] = title
+        return self.api.post(f"/api/bg-tasks/{self.id}/steps", body)["id"]
+
+    def wait_step(self, step_id: str, poll: float = 3.0) -> dict:
+        """Дождаться шага: {status, result_text, error}. Задачу остановили — TaskStopped."""
+        while True:
+            step = self.api.get(f"/api/bg-tasks/{self.id}/steps/{step_id}")
+            if step["status"] not in ("queued", "running"):
+                if step["status"] == "stopped" and not self.active:
+                    raise TaskStopped(self.id)
+                return step
+            time.sleep(poll)
+
+    def run_step(self, agent: str, prompt: str, title: str | None = None, timeout_sec: int = 3600,
+                 retries: int = 1) -> str:
+        """Шаг целиком: поставить, дождаться, вернуть ответ агента. Прерван перезапуском Пульса — повторить."""
+        for attempt in range(retries + 1):
+            step = self.wait_step(self.step(agent, prompt, title, timeout_sec))
+            if step["status"] == "done":
+                return step.get("result_text") or ""
+            if step["status"] != "interrupted" or attempt == retries:
+                raise CommandError(f"Шаг «{title or agent}» не удался: {step.get('error') or step['status']}")
+        return ""
+
+    def progress(self, text: str = "", *, stage: int | None = None, files: list[str] | None = None,
+                 percent: float | None = None) -> dict:
+        body: dict[str, Any] = {"text": text}
+        if stage is not None:
+            body["stage"] = stage
+        if files:
+            body["files"] = files
+        if percent is not None:
+            body["percent"] = percent
+        self.data = self.api.post(f"/api/bg-tasks/{self.id}/progress", body)
+        return self.data
+
+    def message(self, prompt: str) -> dict:
+        """Разбудить агента чата: передать владельцу вопросы или итог; ответ вернётся командой плагина."""
+        return self.api.post(f"/api/bg-tasks/{self.id}/message", {"prompt": prompt})
+
+    def finish(self, text: str = "", *, failed: bool = False, error: str | None = None) -> dict:
+        body: dict[str, Any] = {"status": "failed" if failed else "done", "text": text}
+        if error:
+            body["error"] = error
+        self.data = self.api.post(f"/api/bg-tasks/{self.id}/finish", body)
+        return self.data
 
 
 class PulseApiError(RuntimeError):
@@ -114,6 +188,9 @@ class PulseApi:
 
 _CALLER: ContextVar[str] = ContextVar("pulse_caller", default="agent")
 _AGENT_SETTINGS: ContextVar[dict] = ContextVar("pulse_agent_settings", default={})
+# контракт 1.12: запуск агента и его чат, откуда позвали команду
+_RUN: ContextVar[str | None] = ContextVar("pulse_run", default=None)
+_CHAT: ContextVar[str | None] = ContextVar("pulse_chat", default=None)
 CALLERS = ("owner", "agent", "plugin")
 
 
@@ -157,11 +234,15 @@ class Plugin:
             token = _CALLER.set(value if value in CALLERS else "agent")
             # контракт 1.8: agent_settings этого плагина у агента запуска (ставит ядро)
             caps = _AGENT_SETTINGS.set(_parse_agent_settings(request))
+            run = _RUN.set(request.headers.get("x-pulse-run") or None)
+            chat = _CHAT.set(request.headers.get("x-pulse-chat") or None)
             try:
                 return await call_next(request)
             finally:
                 _CALLER.reset(token)
                 _AGENT_SETTINGS.reset(caps)
+                _RUN.reset(run)
+                _CHAT.reset(chat)
 
         self._routes()
 
@@ -181,6 +262,16 @@ class Plugin:
     def agent_setting(key: str, default: Any = None) -> Any:
         """Одна настройка агента из agent_settings манифеста."""
         return (_AGENT_SETTINGS.get() or {}).get(key, default)
+
+    @staticmethod
+    def run_id() -> str | None:
+        """Запуск агента, позвавшего команду (X-Pulse-Run, контракт 1.12): по нему ставится фоновая задача в его чат."""
+        return _RUN.get()
+
+    @staticmethod
+    def chat_id() -> str | None:
+        """Чат агента, позвавшего команду (X-Pulse-Chat), или None — команду позвали не из чата."""
+        return _CHAT.get()
 
     def require_owner(self, what: str = "Это действие") -> None:
         """Только владелец из браузера: подтверждение оплаты, вход, необратимое. Агенту — 403 с понятным текстом."""
@@ -269,6 +360,47 @@ class Plugin:
         """Сигнал в ленту владельца (право signals:create): приоритет ≥ 85 — срочно, 70–84 — важно."""
         return self.api.post("/api/cards", {"type": "signal", "title": title, "body": body, "priority": priority,
                                             "tags": tags or [], **fields})
+
+    # --- зависимости и свои агенты (контракт 1.12) -------------------------------------------------------
+
+    def dependencies(self) -> dict[str, dict]:
+        """Зависимости из манифеста с состоянием: {id: {installed, installed_version, enabled, version_ok, ok, …}}."""
+        return {d["id"]: d for d in self.api.get(f"/api/plugins/{self.id}/dependencies")}
+
+    def dependency_ok(self, plugin_id: str) -> bool:
+        """Зависимость стоит, включена и подходит по версии — её командами можно пользоваться."""
+        return bool(self.dependencies().get(plugin_id, {}).get("ok"))
+
+    def agents(self) -> dict[str, dict]:
+        """Свои агенты по ключу (agents/<ключ>.md): интеграция, модель, полный доступ."""
+        return {a["key"]: a for a in self.api.get(f"/api/plugins/{self.id}/agents")}
+
+    def models(self) -> list[dict]:
+        """CLI-интеграции Пульса и их модели (право agents:models)."""
+        return self.api.get(f"/api/plugins/{self.id}/models")
+
+    def set_agent_model(self, key: str, integration_id: str | None = None, model: str | None = None) -> dict:
+        """Модель своего агента (agents:models); пустая model — модель интеграции по умолчанию."""
+        body: dict[str, Any] = {"model": model or ""}
+        if integration_id:
+            body["cli_integration_id"] = integration_id
+        return self.api.patch(f"/api/plugins/{self.id}/agents/{key}", body)
+
+    def drop_privileged(self, key: str) -> dict:
+        """Выключить полный доступ своему агенту. Включает только владелец: pulse.requestPrivileged на странице."""
+        return self.api.patch(f"/api/plugins/{self.id}/agents/{key}", {"privileged": False})
+
+    def bg_task(self, title: str, *, run_id: str | None = None, stages: list[str] | None = None,
+                timeout_sec: int = 24 * 3600, on_done: str | None = None, wake: bool = True) -> "BgTask":
+        """Фоновая задача в чате агента, позвавшего команду (право bg). run_id — по умолчанию из X-Pulse-Run команды."""
+        run_id = run_id or self.run_id()
+        if not run_id:
+            raise CommandError("Фоновую задачу ставят из чата: команду должен позвать агент в чате")
+        body: dict[str, Any] = {"title": title, "run_id": run_id, "stages": stages or [], "timeout_sec": timeout_sec,
+                                "wake": wake}
+        if on_done:
+            body["on_done"] = on_done
+        return BgTask(self.api, self.api.post("/api/bg-tasks", body))
 
     # --- команды ----------------------------------------------------------------------------------------
 

@@ -55,6 +55,31 @@
    "title": "AgentSetting",
    "type": "object"
   },
+  "Dependency": {
+   "additionalProperties": false,
+   "description": "Плагин, от которого зависит этот (контракт 1.12). Обязательный ставится вместе с плагином и не удаляется,\nпока стоит зависящий; необязательный — по выбору владельца при установке, без него плагин работает урезанно.",
+   "properties": {
+    "version": {
+     "default": "",
+     "maxLength": 50,
+     "title": "Version",
+     "type": "string"
+    },
+    "optional": {
+     "default": false,
+     "title": "Optional",
+     "type": "boolean"
+    },
+    "reason": {
+     "default": "",
+     "maxLength": 200,
+     "title": "Reason",
+     "type": "string"
+    }
+   },
+   "title": "Dependency",
+   "type": "object"
+  },
   "EmbedSpec": {
    "additionalProperties": false,
    "description": "Same-origin embed pages under /plugin-apps/<id>/… (requires permission embed).",
@@ -671,7 +696,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.11",
+   "default": ">=1.12",
    "title": "Pulse",
    "type": "string"
   },
@@ -684,6 +709,9 @@
   "permissions": {
    "items": {
     "enum": [
+     "agents:models",
+     "agents:privileged",
+     "bg",
      "cards:read",
      "cards:write",
      "chat",
@@ -840,6 +868,14 @@
    "default": "INSTALL.md",
    "title": "Install",
    "type": "string"
+  },
+  "dependencies": {
+   "additionalProperties": {
+    "$ref": "#/$defs/Dependency"
+   },
+   "maxProperties": 10,
+   "title": "Dependencies",
+   "type": "object"
   }
  },
  "required": [
@@ -849,6 +885,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.11.schema.json",
- "x-pulse-contract": "1.11"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.12.schema.json",
+ "x-pulse-contract": "1.12"
 }

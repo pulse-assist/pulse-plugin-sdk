@@ -35,6 +35,7 @@ PERMISSIONS = {
     "cards:read", "cards:write", "signals:create", "files", "files:open", "files:mount", "files:provide", "speech:provide",
     "embed",
     "services", "jobs", "chat", "notify", "network",
+    "agents:models", "agents:privileged", "bg",           # контракт 1.12
 }
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
                 ".plugin-data", ".idea", ".vscode", ".pulse_plugin_sdk"}
@@ -83,6 +84,22 @@ def check(root: Path) -> tuple[dict, list[str]]:
     unknown = set(m.get("permissions") or []) - PERMISSIONS
     if unknown:
         problems.append(f"permissions: неизвестные права {', '.join(sorted(unknown))} (есть: {', '.join(sorted(PERMISSIONS))})")
+    deps = m.get("dependencies") or {}
+    if not isinstance(deps, dict):
+        problems.append("dependencies: объект {id плагина: {version, optional, reason}}")
+        deps = {}
+    for dep_id, dep in deps.items():
+        # контракт 1.12: плагины, от которых зависит этот
+        if not ID.match(str(dep_id)):
+            problems.append(f"dependencies: «{dep_id}» — не id плагина")
+        if dep_id == m.get("id"):
+            problems.append("dependencies: плагин не может зависеть от самого себя")
+        if not isinstance(dep, dict) or set(dep) - {"version", "optional", "reason"}:
+            problems.append(f"dependencies.{dep_id}: только version, optional, reason")
+            continue
+        for part in str(dep.get("version") or "").split(","):
+            if part.strip() and not SPEC.match(part.strip()):
+                problems.append(f"dependencies.{dep_id}.version: непонятное условие «{part.strip()}»")
     runtime = m.get("runtime")
     if runtime:
         kind = runtime.get("kind", "python")
@@ -232,6 +249,8 @@ def pack(root: Path, out: Path, url_base: str | None = None, build_ui: bool = Tr
              "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
              "permissions": manifest.get("permissions") or [], "released_at": date.today().isoformat(),
              "changes": ""}
+    if manifest.get("dependencies"):
+        entry["dependencies"] = manifest["dependencies"]          # контракт 1.12: окно установки их покажет
     (out / f"{pid}-{version}.json").write_text(json.dumps(entry, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return {"archive": str(archive), "entry": entry, "manifest": manifest}
 
