@@ -335,6 +335,17 @@ class Plugin:
 
         mount(self.app, provider)
 
+    def provide_llm(self, models, connection) -> None:
+        """Шлюз к моделям для агентов (pulse_plugin.llm, право llm:provide, контракт 1.13)."""
+        from pulse_plugin.llm import mount
+
+        mount(self.app, models, connection)
+
+    def save_settings(self, settings: dict | None = None, secrets: dict | None = None) -> dict:
+        """Свои настройки и секреты (контракт 1.13): Пульс сохранит их и перезапустит процесс с новым окружением."""
+        return self.api.request("PUT", f"/api/plugins/{self.id}/settings",
+                                json={"settings": settings or {}, "secrets": secrets or {}})
+
     def provide_speech(self, handler):
         """Распознавание речи для Пульса (pulse_plugin.speech, право speech:provide); годится как декоратор."""
         from pulse_plugin.speech import mount

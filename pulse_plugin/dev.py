@@ -36,6 +36,7 @@ PERMISSIONS = {
     "embed",
     "services", "jobs", "chat", "notify", "network",
     "agents:models", "agents:privileged", "bg",           # контракт 1.12
+    "llm:provide",                                       # контракт 1.13
 }
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
                 ".plugin-data", ".idea", ".vscode", ".pulse_plugin_sdk"}
@@ -84,6 +85,20 @@ def check(root: Path) -> tuple[dict, list[str]]:
     unknown = set(m.get("permissions") or []) - PERMISSIONS
     if unknown:
         problems.append(f"permissions: неизвестные права {', '.join(sorted(unknown))} (есть: {', '.join(sorted(PERMISSIONS))})")
+    gateway = (m.get("llm") or {}).get("gateway") if isinstance(m.get("llm"), dict) else None
+    if gateway is not None:
+        # контракт 1.13: шлюз к моделям
+        if "llm:provide" not in (m.get("permissions") or []):
+            problems.append("llm.gateway: нужно право llm:provide")
+        if not m.get("runtime"):
+            problems.append("llm.gateway: отвечает процесс плагина — нужен runtime")
+        if not str((gateway or {}).get("title") or "").strip():
+            problems.append("llm.gateway.title: название шлюза для «Моделей и CLI»")
+    for service in m.get("services") or []:
+        when = (service or {}).get("when")
+        if when is not None and (not isinstance(when, dict) or when.get("setting") not in (m.get("settings") or {})
+                                 or not when.get("equals")):
+            problems.append(f"services «{(service or {}).get('id')}»: when — {{setting: <настройка>, equals: [значения]}}")
     deps = m.get("dependencies") or {}
     if not isinstance(deps, dict):
         problems.append("dependencies: объект {id плагина: {version, optional, reason}}")

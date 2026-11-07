@@ -325,6 +325,47 @@
    "title": "JobSpec",
    "type": "object"
   },
+  "LlmGateway": {
+   "additionalProperties": false,
+   "description": "Шлюз к моделям (контракт 1.13, право llm:provide): процесс плагина отвечает на GET /llm/models и\nGET /llm/connection, а Пульс запускает через шлюз Claude Code интеграций «модель через шлюз».",
+   "properties": {
+    "title": {
+     "maxLength": 60,
+     "minLength": 1,
+     "title": "Title",
+     "type": "string"
+    },
+    "description": {
+     "default": "",
+     "maxLength": 300,
+     "title": "Description",
+     "type": "string"
+    }
+   },
+   "required": [
+    "title"
+   ],
+   "title": "LlmGateway",
+   "type": "object"
+  },
+  "LlmSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "gateway": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/LlmGateway"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
+    }
+   },
+   "title": "LlmSpec",
+   "type": "object"
+  },
   "MenuItem": {
    "properties": {
     "id": {
@@ -573,6 +614,17 @@
       }
      ],
      "default": null
+    },
+    "when": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/ServiceWhen"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null
     }
    },
    "required": [
@@ -581,6 +633,31 @@
     "port"
    ],
    "title": "ServiceSpec",
+   "type": "object"
+  },
+  "ServiceWhen": {
+   "additionalProperties": false,
+   "description": "Сервис поднимается, только когда настройка плагина равна одному из значений (контракт 1.13).",
+   "properties": {
+    "setting": {
+     "maxLength": 60,
+     "minLength": 1,
+     "title": "Setting",
+     "type": "string"
+    },
+    "equals": {
+     "items": {},
+     "maxItems": 20,
+     "minItems": 1,
+     "title": "Equals",
+     "type": "array"
+    }
+   },
+   "required": [
+    "setting",
+    "equals"
+   ],
+   "title": "ServiceWhen",
    "type": "object"
   },
   "Setting": {
@@ -696,7 +773,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.12",
+   "default": ">=1.13",
    "title": "Pulse",
    "type": "string"
   },
@@ -721,6 +798,7 @@
      "files:open",
      "files:provide",
      "jobs",
+     "llm:provide",
      "network",
      "notify",
      "services",
@@ -876,6 +954,17 @@
    "maxProperties": 10,
    "title": "Dependencies",
    "type": "object"
+  },
+  "llm": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/LlmSpec"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null
   }
  },
  "required": [
@@ -885,6 +974,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.12.schema.json",
- "x-pulse-contract": "1.12"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.13.schema.json",
+ "x-pulse-contract": "1.13"
 }
