@@ -57,11 +57,19 @@ class BgTask:
     def active(self) -> bool:
         return self.refresh()["status"] in ("queued", "running")
 
-    def step(self, agent: str, prompt: str, title: str | None = None, timeout_sec: int = 3600) -> str:
-        """Поставить шаг (запуск своего агента); вернуть id шага."""
-        body: dict[str, Any] = {"agent": agent, "prompt": prompt, "timeout_sec": timeout_sec}
+    def step(self, agent: str, prompt: str, title: str | None = None, timeout_sec: int = 3600, *,
+             integration: str | None = None, model: str | None = None, web: str = "none") -> str:
+        """Поставить шаг (запуск своего агента); вернуть id шага.
+        Контракт 1.14: integration и model — модель этого шага вместо модели агента (право agents:models);
+        web — интернет на шаге (право agents:web): "none", "native" (веб-поиск самой модели) или "browser"
+        (только команды pulse browser — правила работы с вкладкой пишите в prompt)."""
+        body: dict[str, Any] = {"agent": agent, "prompt": prompt, "timeout_sec": timeout_sec, "web": web}
         if title:
             body["title"] = title
+        if integration:
+            body["integration"] = integration
+        if model:
+            body["model"] = model
         return self.api.post(f"/api/bg-tasks/{self.id}/steps", body)["id"]
 
     def wait_step(self, step_id: str, poll: float = 3.0) -> dict:
@@ -75,10 +83,11 @@ class BgTask:
             time.sleep(poll)
 
     def run_step(self, agent: str, prompt: str, title: str | None = None, timeout_sec: int = 3600,
-                 retries: int = 1) -> str:
-        """Шаг целиком: поставить, дождаться, вернуть ответ агента. Прерван перезапуском Пульса — повторить."""
+                 retries: int = 1, **options) -> str:
+        """Шаг целиком: поставить, дождаться, вернуть ответ агента. Прерван перезапуском Пульса — повторить.
+        options — integration, model, web, как у step."""
         for attempt in range(retries + 1):
-            step = self.wait_step(self.step(agent, prompt, title, timeout_sec))
+            step = self.wait_step(self.step(agent, prompt, title, timeout_sec, **options))
             if step["status"] == "done":
                 return step.get("result_text") or ""
             if step["status"] != "interrupted" or attempt == retries:
@@ -387,8 +396,20 @@ class Plugin:
         return {a["key"]: a for a in self.api.get(f"/api/plugins/{self.id}/agents")}
 
     def models(self) -> list[dict]:
-        """CLI-интеграции Пульса и их модели (право agents:models)."""
+        """CLI-интеграции Пульса и их модели (право agents:models): {id, name, kind, models, native_web}."""
         return self.api.get(f"/api/plugins/{self.id}/models")
+
+    def call(self, plugin_id: str, command: str, timeout: float | None = None, **args) -> Any:
+        """Команда плагина-зависимости, как `pulse <плагин> <команда> --арг …` у агента (контракт 1.14, право
+        plugins:call; плагин — из dependencies манифеста)."""
+        name = command.strip().replace(" ", "/")
+        return self.api.request("POST", f"/api/plugins/{plugin_id}/commands/{name}",
+                                json={"args": {k: v for k, v in args.items() if v is not None}},
+                                timeout=timeout or 600)
+
+    def read_file(self, path: str) -> str:
+        """Текст файла из «Файлов» — своей папки (право files) или выбранного в настройке type: file (1.14)."""
+        return self.api.request("GET", "/api/files/text", params={"path": path})["text"]
 
     def set_agent_model(self, key: str, integration_id: str | None = None, model: str | None = None) -> dict:
         """Модель своего агента (agents:models); пустая model — модель интеграции по умолчанию."""
@@ -402,13 +423,18 @@ class Plugin:
         return self.api.patch(f"/api/plugins/{self.id}/agents/{key}", {"privileged": False})
 
     def bg_task(self, title: str, *, run_id: str | None = None, stages: list[str] | None = None,
-                timeout_sec: int = 24 * 3600, on_done: str | None = None, wake: bool = True) -> "BgTask":
-        """Фоновая задача в чате агента, позвавшего команду (право bg). run_id — по умолчанию из X-Pulse-Run команды."""
-        run_id = run_id or self.run_id()
-        if not run_id:
+                timeout_sec: int = 24 * 3600, on_done: str | None = None, wake: bool = True,
+                chat_id: str | None = None) -> "BgTask":
+        """Фоновая задача в чате агента, позвавшего команду (право bg). run_id — по умолчанию из X-Pulse-Run команды;
+        chat_id — чат явно (страница плагина с правом chat сама заводит чат)."""
+        run_id = run_id or (None if chat_id else self.run_id())
+        if not run_id and not chat_id:
             raise CommandError("Фоновую задачу ставят из чата: команду должен позвать агент в чате")
-        body: dict[str, Any] = {"title": title, "run_id": run_id, "stages": stages or [], "timeout_sec": timeout_sec,
-                                "wake": wake}
+        body: dict[str, Any] = {"title": title, "stages": stages or [], "timeout_sec": timeout_sec, "wake": wake}
+        if run_id:
+            body["run_id"] = run_id
+        if chat_id:
+            body["chat_id"] = chat_id
         if on_done:
             body["on_done"] = on_done
         return BgTask(self.api, self.api.post("/api/bg-tasks", body))

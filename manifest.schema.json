@@ -668,7 +668,8 @@
       "string",
       "number",
       "integer",
-      "boolean"
+      "boolean",
+      "file"
      ],
      "title": "Type",
      "type": "string"
@@ -773,7 +774,7 @@
    "type": "string"
   },
   "pulse": {
-   "default": ">=1.13",
+   "default": ">=1.14",
    "title": "Pulse",
    "type": "string"
   },
@@ -788,6 +789,7 @@
     "enum": [
      "agents:models",
      "agents:privileged",
+     "agents:web",
      "bg",
      "cards:read",
      "cards:write",
@@ -801,6 +803,7 @@
      "llm:provide",
      "network",
      "notify",
+     "plugins:call",
      "services",
      "signals:create",
      "speech:provide"
@@ -974,6 +977,6 @@
  ],
  "title": "Manifest",
  "type": "object",
- "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.13.schema.json",
- "x-pulse-contract": "1.13"
+ "$id": "https://github.com/pulse-assist/pulse-plugin-sdk/manifest-1.14.schema.json",
+ "x-pulse-contract": "1.14"
 }

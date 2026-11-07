@@ -37,6 +37,7 @@ PERMISSIONS = {
     "services", "jobs", "chat", "notify", "network",
     "agents:models", "agents:privileged", "bg",           # контракт 1.12
     "llm:provide",                                       # контракт 1.13
+    "agents:web", "plugins:call",                        # контракт 1.14
 }
 EXCLUDE_DIRS = {".git", ".github", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache", "dist",
                 ".plugin-data", ".idea", ".vscode", ".pulse_plugin_sdk"}
